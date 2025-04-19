@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>יומן המשקל של אחינועם</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Reset בסיסי */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: sans-serif;
+      background: #fdf8f5;
+      color: #333;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    /* שדות קלט וכפתורים */
+    .input-group input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      text-align: center;
+    }
+    .input-group button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px;
+      background: #a8dadc;
+      color: #fff;
+      cursor: pointer;
+    }
+    .input-group button:hover {
+      background: #89c2d9;
+    }
+    /* רשימת משקלים */
+    #entries {
+      list-style: none;
+      margin-top: 10px;
+    }
+    #entries li {
+      background: #fff;
+      margin-bottom: 5px;
+      padding: 10px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #entries li button {
+      border: none;
+      background: #ff6b6b;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #entries li button:hover {
+      background: #ee5253;
+    }
+    /* ממוצע והודעת מוטיבציה */
+    #average {
+      margin-top: 10px;
+      font-weight: bold;
+      text-align: center;
+    }
+    #motivational {
+      margin: 15px 0;
+      text-align: center;
+      font-style: italic;
+      color: #6d6875;
+    }
+    /* עיצוב הגרף */
+    canvas {
+      background: #fff;
+      border-radius: 5px;
+      margin-top: 20px;
+    }
+    /* רספונסיב */
+    @media (max-width: 600px) {
+      .input-group {
+        flex-direction: column;
+      }
+      .input-group button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>יומן המשקל של אחינועם</h1>
+    <div id="motivational"></div>
+
+    <!-- קלט משקל יומי -->
+    <div class="input-group">
+      <input type="number" id="weightInput" placeholder="הזן משקל יומי (ק"ג)" />
+      <button id="saveWeightBtn">שמרי</button>
+    </div>
+
+    <!-- קלט ועריכת משקל יעד -->
+    <div class="input-group">
+      <input type="number" id="goalInput" placeholder="משקל יעד (ק"ג)" />
+      <button id="saveGoalBtn">ערכי יעד</button>
+    </div>
+
+    <!-- רשימת משקלים -->
+    <ul id="entries"></ul>
+
+    <!-- ממוצע משקל -->
+    <div id="average"></div>
+
+    <!-- גרף קו -->
+    <canvas id="weightChart" height="200"></canvas>
+  </div>
+
+  <script>
+    // מערך משפטי מוטיבציה אקראיים
+    const motivationalQuotes = [
+      "כל צעד קטן הוא התקדמות ענקית!",
+      "את יכולה לעשות את זה!",
+      "כל יום התקדמות היא הצלחה!",
+      "לאחינועם, את חזקה יותר ממה שאת חושבת!",
+      "אל תוותרי, המשקל הנכון קרוב יותר ממה שאת חושבת!"
+    ];
+
+    // אלמנטים בדף
+    const weightInput    = document.getElementById('weightInput');
+    const saveWeightBtn  = document.getElementById('saveWeightBtn');
+    const goalInput      = document.getElementById('goalInput');
+    const saveGoalBtn    = document.getElementById('saveGoalBtn');
+    const entriesList    = document.getElementById('entries');
+    const averageDiv     = document.getElementById('average');
+    const motivationalDiv= document.getElementById('motivational');
+    const ctx            = document.getElementById('weightChart').getContext('2d');
+
+    let weightChart;  // ישמש לאחסון העמודה של Chart.js
+
+    // מציג משפט מוטיבציה אקראי
+    function showRandomMotivation() {
+      const idx = Math.floor(Math.random() * motivationalQuotes.length);
+      motivationalDiv.textContent = motivationalQuotes[idx];
+    }
+
+    // קורא נתונים מ-localStorage
+    function loadData() {
+      const data = JSON.parse(localStorage.getItem('weightData')) || [];
+      const goal = JSON.parse(localStorage.getItem('weightGoal')) || null;
+      return { data, goal };
+    }
+
+    // שומר משקל חדש
+    function saveWeight() {
+      const weight = parseFloat(weightInput.value);
+      if (!weight) return;  // לא ממשיך אם הקלט לא חוקי
+      const today = new Date().toISOString().split('T')[0]; // פורמט YYYY-MM-DD
+      const { data, goal } = loadData();
+      data.push({ date: today, weight });
+      localStorage.setItem('weightData', JSON.stringify(data));
+      weightInput.value = '';
+      updateUI();
+    }
+
+    // שומר ערך יעד משקל
+    function saveGoal() {
+      const goal = parseFloat(goalInput.value);
+      if (!goal) return;
+      localStorage.setItem('weightGoal', JSON.stringify(goal));
+      updateUI();
+    }
+
+    // מוחק פריט מהרשימה
+    function deleteEntry(index) {
+      const { data, goal } = loadData();
+      data.splice(index, 1);
+      localStorage.setItem('weightData', JSON.stringify(data));
+      updateUI();
+    }
+    window.deleteEntry = deleteEntry; // חשיפה גלובלית לפונקציה
+
+    // מחשב ממוצע משקל
+    function calculateAverage(data) {
+      if (data.length === 0) return 0;
+      const sum = data.reduce((acc, cur) => acc + cur.weight, 0);
+      return (sum / data.length).toFixed(2);
+    }
+
+    // מעדכן את גרף המשקל
+    function updateChart(data, goal) {
+      const labels = data.map(d => d.date);
+      const weights = data.map(d => d.weight);
+      const datasets = [{
+        label: 'משקל',
+        data: weights,
+        fill: false,
+        borderColor: '#52b788',
+        tension: 0.1
+      }];
+      if (goal) {
+        datasets.push({
+          label: 'יעד משקל',
+          data: labels.map(() => goal),
+          borderColor: '#fab788',
+          borderDash: [5,5],
+          pointRadius: 0
+        });
+      }
+      if (weightChart) weightChart.destroy();
+      weightChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          scales: {
+            x: { title: { display: true, text: 'תאריך' } },
+            y: { title: { display: true, text: 'משקל (ק"ג)' } }
+          }
+        }
+      });
+    }
+
+    // מעדכן את כל הממשק: רשימה, ממוצע, גרף, ערך יעד
+    function updateUI() {
+      const { data, goal } = loadData();
+
+      // רשימת משקלים
+      entriesList.innerHTML = '';
+      data.forEach((entry, idx) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${entry.date} – ${entry.weight} ק"ג</span>
+          <button onclick="deleteEntry(${idx})">מחק</button>
+        `;
+        entriesList.appendChild(li);
+      });
+
+      // ממוצע
+      const avg = calculateAverage(data);
+      averageDiv.textContent = data.length 
+        ? `ממוצע משקל: ${avg} ק"ג`
+        : '';
+
+      // עדכון שדה יעד לקלט
+      goalInput.value = goal || '';
+
+      // עדכון גרף
+      updateChart(data, goal);
+    }
+
+    // הגדרת מאזינים
+    saveWeightBtn.addEventListener('click', saveWeight);
+    saveGoalBtn.addEventListener('click', saveGoal);
+
+    // אתחול ראשוני
+    showRandomMotivation();
+    updateUI();
+  </script>
+</body>
+</html>
